@@ -47,17 +47,17 @@ ubuntu	ubuntu
 root	osroot
 服務用戶名和密碼
 
-Database	User                    Password                Remark
-            root                    root_password           MySQL
-            postgres                postgres_password	PostgreSQL
-scm	scm	            scm_password            Cloudera Manager Server
-hue         hue	            hue_password            Apache Hadoop UI
-oozie       oozie                   oozie_password          Oozie Server
-sqoop       sqoop                   sqoop_password          Sqoop Server
-amon        amon                    amon_password           Activity Monitor
-metastore	hive                    hive_password           Hive Metastore Server
-sentry      sentry                  sentry_password         Sentry Server
-            hueadmin                admin_password          Hue Web UI Login
+Database	            User                    Password                Remark
+                        root                    root_password           MySQL
+                        postgres                postgres_password	PostgreSQL
+scm	            scm	            scm_password            Cloudera Manager Server
+hue                     hue	            hue_password            Apache Hadoop UI
+oozie                   oozie                   oozie_password          Oozie Server
+sqoop                   sqoop                   sqoop_password          Sqoop Server
+amon                    amon                    amon_password           Activity Monitor
+metastore	            hive                    hive_password           Hive Metastore Server
+sentry                  sentry                  sentry_password         Sentry Server
+                        hueadmin                admin_password          Hue Web UI Login
 1.2 節點系統安裝
 
 1.3 節點系統基本環境配置
