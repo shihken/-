@@ -1,0 +1,778 @@
+https://www.zybuluo.com/ncepuwanghui/note/474966
+@ncepuwanghui 2016-08-22 11:12 字数 21962 阅读 777
+Ubuntu Server 14.04 安裝部署CDH5.7.2
+
+云计算 Hadoop
+
+【聲明】 
+歡迎轉載，轉載本文請註明作者和出處
+https://www.zybuluo.com/ncepuwanghui/note/474966
+
+【版本控制】
+
+@Title          Ubuntu Server 14.04 安装部署 CDH5.7.2
+@Version        v1.0
+@Timestamp      2016-08-20 11:01
+@Author         Sam Wong
+@Mail           ncepuwanghui@foxmail.com
+【系統環境】 
+①物理主機
+
+@Server         Wave P8000
+@CPU            Intel Xeon CPU E5-2620 v3 2.40GHz * 2
+@Memory         16GB * 8
+@Storage        SAS 300GB * 3
+@Network        Gigabit Ethernet Card * 6
+@OS             Windows Server 2012 R2 DataCenter
+② 集群環境
+
+@OS             Ubuntu Server 14.04.5 LTS (64bit)
+@JDK            JDK 1.7.0_67
+@CDH            CDH 5.7.2
+@Hadoop         Hadoop 2.6.0
+@Spark          Spark 1.6.0
+1. 節點系統安裝配置
+
+1.1 集群節點規劃
+
+硬件配置
+共5個節點：1個master節點，4個slave節點，硬件配置如下：
+
+節點	CPU	內存	存儲
+master	4	24GB	100GB
+slave	4	16GB	100GB
+網絡配置
+
+節點	eth0
+master	192.168.199.100
+slave1	192.168.199.101
+slave2	192.168.199.102
+slave3	192.168.199.103
+slave4	192.168.199.104
+netmask	255.255.255.0
+gateway	192.168.199.1
+主機用戶名和密碼
+
+User	Password
+ubuntu	ubuntu
+root	osroot
+服務用戶名和密碼
+
+Database	User	Password	Remark
+root	root_password	MariaDB
+postgres	postgres_password	PostgreSQL
+scm	scm	scm_password	Cloudera Manager Server
+hue	hue	hue_password	Apache Hadoop UI
+oozie	oozie	oozie_password	Oozie Server
+sqoop	sqoop	sqoop_password	Sqoop Server
+amon	amon	amon_password	Activity Monitor
+metastore	hive	hive_password	Hive Metastore Server
+sentry	sentry	sentry_password	Sentry Server
+hueadmin	admin_password	Hue Web UI Login
+1.2 節點系統安裝
+
+在VMware中創建虛擬機，安裝Ubuntu Server 14.04.5 LTS
+
+創建虛擬機，設置CPU核心數、內存大小、存儲大小。
+添加虛擬網卡，採用橋接方式，橋接到物理網絡。
+加載Ubuntu Server 14.04.5 LTS系統鏡像
+啟動系統，選擇時區、語言，設置主機名和用戶名、密碼。
+Partition disks配置步驟：
+①單獨設置分區/dev/sda1，大小200MB，用於掛載/boot 
+選擇手動配置-->選擇硬盤-->創建新的分區表-->選擇空閒空間-->新建分區-->設置大小200MB-->選擇主分區-->選擇開始位置-->設置文件系統格式Ext4-->設置掛載點/boot-->設置分區。
+②設置LVM，方便擴展存儲，掛載/和swap 
+配置邏輯卷LVM-->將修改寫入磁盤並配置LVM-->新建卷組-->卷組名稱：vg_system-->按空格鍵選中剩餘空閒空間/dev/sda- ->將修改寫入磁盤並配置LVM-->新建邏輯卷-->選擇卷組vg_system-->邏輯卷名：lv_root-->設置邏輯卷大小：91GB-->新建邏輯卷-->選擇卷組vg_system-->邏輯卷名：lv_swap-->設置邏輯卷大小為剩餘空間-->完成。
+③分別對每一個邏輯捲進行配置
+磁盤格式：lv_root選擇ext4，lv_swap選擇swap area。
+掛載點：lv_root選擇"/"。
+最後選擇完成分區並將更改寫入磁盤，點擊確定即可。
+選擇服務器默認安裝軟件包
+空格鍵選擇OpenSSH Server，方便使用SSH傳輸文件。
+安裝Grub。
+按照上述步驟，創建其他節點服務器並安裝Ubuntu Server 14.04.5 LTS系統
+1.3 節點系統基本環境配置
+
+啟用root用戶，設置root密碼
+
+sudo passwd root
+設置靜態IP/DNS 
+注：以master節點為例 
+①修改文件sudo vi /etc/network/interfaces，將默認生成的（下面內容可能沒有，可能不一樣，配置時視自己情況而定）：
+
+auto eth0
+iface eth0 inet dhcp
+改為：
+
+auto eth0
+iface eth0 inet static
+address 192.168.199.100 #IP地址
+netmask 255.255.255.0 #子网掩码
+gateway 192.168.199.1 #网关
+dns-nameserver 192.168.199.1 #DNS
+② 重啟網卡，使配置生效：
+
+sudo service networking restart
+注：若找不到上述命令或重啟無效可嘗試下面命令：
+
+sudo ifdown eth0
+sudo ifdown eth1
+sudo ifup eth0
+sudo ifup eth1
+注：若提示ifdown: interface eth0 not configured，可換下面命令嘗試：
+
+sudo ifconfig eth0 down
+sudo ifconfig eth1 down
+sudo ifconfig eth0 up
+sudo ifconfig eth1 up
+③運行ifconfig -a查看網絡配置信息。
+④通過ping -c2 www.baidu.com測試能否正常訪問外網。若不能，可sudo reboot重啟節點試試。
+⑤配置完成後，可在其他主機，通過Xshell連接master節點。
+注：若XShell連接失敗，提示Xshell no matching outgoing encryption，可升級Xshell版本,在鏈接的屬性(SSH-->安全性)的加密算法列表中選擇aes256-ctr，mac加密列表中選擇hmac-sha2-256，保存即可。
+注：slave節點配置方法類似
+
+關閉防火牆
+
+sudo ufw disable
+配置hosts文件
+以master節點為例 
+要求所有的節點主機之間都是通過host互信的，編輯所有節點主機的/etc/hosts文件，配置完成後在每台主機上ping通其他主機名。
+①執行sudo vi /etc/hosts，添加如下內容
+
+192.168.199.100 master
+192.168.199.101 slave1
+192.168.199.102 slave2
+192.168.199.103 slave3
+192.168.199.104 slave4
+②註釋掉除127.0.0.1之外的環回地址項，如下：
+
+#127.0.1.1      master`
+注：slave節點配置方法類似
+
+服務器時區設置
+①執行sudo tzselect-->選擇亞洲（Asia）-->選擇中國（China)-->選擇北京(Beijing)--> 
+②複製文件到/etc目錄下：
+sudo cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime 
+注：若在系統安裝時已設置正確時區，可跳過該步驟。
+
+設置區域語言
+安裝en_US.UTF-8：
+
+sudo locale-gen en_US.UTF-8
+修改配置文件sudo vi /etc/default/locale如下：
+
+LANG="en_US.UTF-8"
+LANGUAGE="en_US:en"
+LC_ALL="en_US.UTF-8"
+重新配置區域：
+
+sudo dpkg-reconfigure locales
+註銷或重啟電腦，執行locale查看是否修改成功。
+
+配置ubuntu的更新源
+①備份源列表
+
+sudo cp /etc/apt/sources.list /etc/apt/sources.list_backup
+②選擇一個更新源，修改配置文件sudo vi /etc/apt/sources.list，添加新的源，國內推薦使用阿里源：
+
+deb http://mirrors.aliyun.com/ubuntu/ trusty main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ trusty-security main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ trusty-updates main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ trusty-proposed main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ trusty-backports main restricted universe multiverse
+deb-src http://mirrors.aliyun.com/ubuntu/ trusty main restricted universe multiverse
+deb-src http://mirrors.aliyun.com/ubuntu/ trusty-security main restricted universe multiverse
+deb-src http://mirrors.aliyun.com/ubuntu/ trusty-updates main restricted universe multiverse
+deb-src http://mirrors.aliyun.com/ubuntu/ trusty-proposed main restricted universe multiverse
+deb-src http://mirrors.aliyun.com/ubuntu/ trusty-backports main restricted universe multiverse
+更新系統
+①更新系統
+
+sudo apt update
+sudo apt upgrade
+sudo apt dist-upgrade
+sudo apt autoremove
+可能遇到的問題： 
+Ubuntu系統/boot容量不足引起的無法更新系統
+解決方法：
+查看/boot分區容量df -h /boot；查看當前使用內核版本號uname -a；刪除舊內核，輸入sudo apt-get remove linux-image-，接著按兩下tab鍵，將顯示所有的內核版本，把目前使用的版本之前的版本全部刪除。最後執行
+
+sudo update-grub
+sudo grub-mkconfig -o /boot/grub/grub.cfg
+② 查看系統發行版本和內核版本
+
+ubuntu@master:~$ sudo lsb_release -a
+No LSB modules are available.
+Distributor ID:	Ubuntu
+Description:	Ubuntu 14.04.5 LTS
+Release:	14.04
+Codename:	trusty
+ubuntu@master:~$ uname -srpi
+Linux 4.4.0-36-generic x86_64 x86_64
+免密碼SSH登錄
+①在每個節點上生成密鑰對：
+
+ssh-keygen -t rsa
+②將每個節點（包括master和slave）上的公鑰複製到master節點，執行如下命令，輸入master登錄密碼，完成複制：
+
+ssh-copy-id -i ~/.ssh/id_rsa.pub master
+③查看所有節點公鑰是否已經添加到了master節點，在master節點執行：
+
+cat ~/.ssh/authorized_keys
+④把master節點的authorized_keys發送到所有slave節點，在master節點執行：
+
+scp ~/.ssh/authorized_keys ubuntu@slave1:/home/ubuntu/.ssh/
+scp ~/.ssh/authorized_keys ubuntu@slave2:/home/ubuntu/.ssh/
+scp ~/.ssh/authorized_keys ubuntu@slave3:/home/ubuntu/.ssh/
+scp ~/.ssh/authorized_keys ubuntu@slave4:/home/ubuntu/.ssh/
+⑤在所有節點上修改ssh配置文件使root用戶也能免密碼登錄：
+修改配置文件sudo vi /etc/ssh/sshd_config
+
+PermitRootLogin yes
+統一時間源，安裝NTP服務
+①在master節點上安裝NTP服務：sudo apt-get install chrony。
+重啟NTP使配置生效：sudo service chrony restart 
+注：確保網絡時間服務器IP地址可以被DNS解析，如果不能，則在/etc/hosts文件中手工加入。
+②在所有slave節點上安裝NTP服務：sudo apt-get install chrony。
+修改配置文件sudo vi /etc/chrony/chrony.conf，刪除全部默認設置，只添加如下內容：
+
+server master iburst
+重啟NTP服務：sudo service chrony restart 
+③驗證是否配置正確：
+
+chronyc sources -v 
+2. 安裝配置CDH
+
+Cloudera官方給出了三種安裝方法：
+
+Path A - Automated Installation by Cloudera Manager (Non-Production Mode) 
+Path B - Installation Using Cloudera Manager Parcels or Packages 
+Path C - Manual Installation Using Cloudera Manager Tarballs
+注：本文采用第2種方法，手動安裝JDK、MariaDB Database、Cloudera Manager Software Package。
+
+Cloudera服務組件：
+① Cloudera Express Version
+
+• Cloudera Manager - Contains all the information about services you have configured and their role assignments, all configuration history, commands, users, and running processes. 
+• Oozie Server - Contains Oozie workflow, coordinator, and bundle data. Can grow very large. 
+• Sqoop Server - Contains entities such as the connector, driver, links and jobs. Relatively small. 
+• Activity Monitor - Contains information about past activities. In large clusters, this database can grow large. Configuring an Activity Monitor database is only necessary if a MapReduce service is deployed. 
+• Hive Metastore Server - Contains Hive metadata. Relatively small. 
+• Sentry Server - Contains authorization metadata. Relatively small.
+② Cloudera Enterprise Version
+
+• Reports Manager - Tracks disk utilization and processing activities over time. Medium-sized. 
+• Cloudera Navigator Audit Server - Contains auditing information. In large clusters, this database can grow large. 
+• Cloudera Navigator Metadata Server - Contains authorization, policies, and audit report metadata. Relatively small
+2.1 Phase 1：安裝Oracle JDK 7
+
+在所有節點安裝JDK 1.7
+
+配置Cloudera軟件倉庫
+Cloudera官方文檔提供了兩種管理倉庫策略：
+• Standard Cloudera repositories 
+•Internally hosted repositories
+
+本文采用Standard Cloudera repositories，步驟如下：
+①在master節點下載cloudera.list
+
+wget https://archive.cloudera.com/cm5/ubuntu/trusty/amd64/cm/cloudera.list?_ga=1.37493987.2113753785.1471598714
+②在master節點新建文件sudo vi /etc/apt/sources.list.d/cloudera-manager.list，複製cloudera.list的內容
+
+sudo cp ~/cloudera.list /etc/apt/sources.list.d/cloudera-manager.list
+③將cloudera-manager.list分發到所有slave節點：
+
+scp /etc/apt/sources.list.d/cloudera-manager.list root@slave1:/etc/apt/sources.list.d/cloudera-manager.list
+scp /etc/apt/sources.list.d/cloudera-manager.list root@slave2:/etc/apt/sources.list.d/cloudera-manager.list
+scp /etc/apt/sources.list.d/cloudera-manager.list root@slave3:/etc/apt/sources.list.d/cloudera-manager.list
+scp /etc/apt/sources.list.d/cloudera-manager.list root@slave4:/etc/apt/sources.list.d/cloudera-manager.list
+④ 向apt添加cloudera源公鑰，在所有節點執行如下命令：
+
+curl -s http://archive.cloudera.com/cm5/ubuntu/trusty/amd64/cm/archive.key | sudo apt-key add -
+⑤ 在所有節點，更新源
+
+sudo apt-get update
+若更新出錯，提示如下：
+
+W: GPG error: http://archive.cloudera.com trusty-cm5 InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 327574EE02A818DD
+可執行如下命令，添加cloudera源的公鑰，重新更新源：
+
+curl -s http://archive.cloudera.com/cm5/ubuntu/trusty/amd64/cm/archive.key | sudo apt-key add -
+安裝JDK1.7 
+CDH要求至少是Oracle JDK7，Ubuntu自帶的是OpenJDK，Ubuntu沒有自帶的Oracle JDK,必須添加外部源才能安裝JDK。
+①採用Cloudera軟件源
+在上一步配置Cloudera軟件源後，可直接執行下面命令安裝：
+
+sudo apt-get install oracle-j2sdk1.7
+②採用PPP源
+添加PPA repository到系統,配置PPP源安裝：
+
+sudo add-apt-repository ppa:webupd8team/java
+sudo apt-get update
+sudo apt-get upgrade
+sudo apt-get install oracle-java7-installer
+sudo apt-get install oracle-java7-set-default
+java -version
+注：若提示如下信息：
+
+sha256sum mismatch jdk-7u80-linux-x64.tar.gz 
+Oracle JDK 7 is NOT installed.
+可能是jdk軟件包沒有下載完全，可執行如下命令刪除後重新安裝：
+
+sudo apt-get purge oracle-java7-installer
+③手動安裝
+從Oracle官網下載JDK7u80：jdk-7u80-linux-x64.tar.gz，解壓到/usr/java/jdk.1.7.0_80
+
+mkdir /usr/java
+sudo tar -zxvf jdk-7u80-linux-x64.tar.gz -C /usr/java
+配置JDK環境變量：
+在~/.bashrc最後添加：
+
+export JAVA_HOME=/usr/java/jdk.1.7.0_80
+再執行：
+
+source ~/.bashrc
+2.2 Phase 2：安裝數據庫
+
+需要安裝：MariaDB和PostgreSQL Database
+
+安裝MariaDB 
+注：只有master節點安裝MariaDB
+
+sudo apt-get install mariadb-server
+注：提示輸入root密碼時，可直接選擇OK，跳過，在後面配置。
+
+配置和啟動MariaDB Server 
+①停止MariaDB Server
+
+sudo service mysql stop
+②備份舊的InnoDB日誌文件/var/lib/mysql/ib_logfile0和/var/lib/mysql/ib_logfile1
+
+sudo mv /var/lib/mysql/ib_logfile0 backup_location #备份位置
+sudo mv /var/lib/mysql/ib_logfile1 backup_location
+③新建文件sudo vi /etc/mysql/conf.d/cloudera.cnf，添加如下配置信息：
+
+[mysqld]
+transaction-isolation = READ-COMMITTED
+# Disabling symbolic-links is recommended to prevent assorted security risks;
+# to do so, uncomment this line:
+# symbolic-links = 0
+bind-address = master # master hostname
+default-storage-engine = innodb
+collation-server = utf8_general_ci
+character-set-server = utf8
+key_buffer = 16M
+key_buffer_size = 32M
+max_allowed_packet = 32M
+thread_stack = 256K
+thread_cache_size = 64
+query_cache_limit = 8M
+query_cache_size = 64M
+query_cache_type = 1
+max_connections = 550
+#expire_logs_days = 10
+#max_binlog_size = 100M
+#log_bin should be on a disk with enough free space. Replace '/var/lib/mysql/mysql_binary_log' with an appropriate path for your system
+#and chown the specified folder to the mysql user.
+log_bin=/var/lib/mysql/mysql_binary_log
+binlog_format = mixed
+read_buffer_size = 2M
+read_rnd_buffer_size = 16M
+sort_buffer_size = 8M
+join_buffer_size = 8M
+# InnoDB settings
+innodb_file_per_table = 1
+innodb_flush_log_at_trx_commit  = 2
+innodb_log_buffer_size = 64M
+innodb_buffer_pool_size = 4G
+innodb_thread_concurrency = 8
+innodb_flush_method = O_DIRECT
+innodb_log_file_size = 512M
+[mysqld_safe]
+log-error=/var/log/mysqld.log
+pid-file=/var/run/mysqld/mysqld.pid
+④重新啟動MariaDB數據庫，確保MariaDB開機啟動：
+
+sudo service mysql restart
+sudo service mysql status
+netstat -ntlp #查看端口监听情况
+⑤設置MariaDB數據庫root用戶密碼：
+執行sudo /usr/bin/mysql_secure_installation，開啟MySQL安全保護措施，根據提示輸入MariaDB數據庫root用戶密碼，根據實際需要選擇後續操作。
+
+$ 
+[...]
+Enter current password for root (enter for none):
+OK, successfully used password, moving on...
+[...]
+Set root password? [Y/n] Y
+New password:
+Re-enter new password:
+Remove anonymous users? [Y/n] Y
+[...]
+Disallow root login remotely? [Y/n] N
+[...]
+Remove test database and access to it [Y/n] Y
+[...]
+Reload privilege tables now? [Y/n] Y
+All done!
+⑥驗證MariaDB是否安裝配置正確
+
+mysql -uroot -p
+mysql -h localhost -uroot -p
+⑦授權root可以訪問所有數據庫：
+
+mysql -uroot -proot_password
+grant all privileges on *.* to 'root'@'%' identified by 'root_password' with grant option;
+flush privileges;
+安裝MariaDB JDBC Driver 
+Cloudera推薦MariaDB數據庫使用MySQL JDBC驅動。
+
+sudo apt-get install libmysql-java
+安裝PostgreSQL Database 
+①設置區域
+
+export LANGUAGE=en_US.UTF-8
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+sudo locale-gen en_US.UTF-8
+sudo dpkg-reconfigure locales
+注：上述方法好像無效，安裝數據庫時，還是原來系統區域語言。
+②安裝PostgreSQL軟件包
+
+sudo apt-get install postgresql
+③配置並啟動PostgreSQL Server 
+注：默認第一次啟動PostgreSQL會自動初始化，有的版本若第一次啟動不進行初始化，可顯示初始化：
+
+sudo service postgresql initdb
+修改配置文件sudo vi /etc/postgresql/9.3/main/pg_hba.conf，啟用MD5認證，將行
+
+host all all 127.0.0.1/32 md5
+修改為：
+
+host all all 192.168.199.100/32 md5 //指定主机IP
+或：
+
+host all all master md5 //指定主机名
+注：若默認配置文件中存在行host all all 127.0.0.1/32 ident，則需確保行host all all 192.168.199.100/32 md5在其之前。
+修改配置文件sudo vi /etc/postgresql/9.3/main/postgresql.conf，添加：
+
+listen_addresses = '*'
+同時根據需要修改其他默認配置，如對於中小型集群可設置：
+
+shared_buffers = 128MB
+wal_buffers = 8MB
+checkpoint_segments = 16
+checkpoint_completion_target = 0.9
+④ 重啟PostgreSQL Database
+
+sudo service postgresql restart
+⑤設置PostgresSQL默認用戶postgres登錄密碼
+
+sudo su - postgres
+psql
+\password postgres
+\q
+2.3 Phase 3：安裝Cloudera Manager Server
+
+安裝Cloudera Manager Server軟件包
+在master節點上執行：
+
+sudo apt-get install cloudera-manager-daemons cloudera-manager-server 
+創建Cloudera Manager Server數據庫scm
+
+mysql -u root -p
+create database scm DEFAULT CHARACTER SET utf8;
+grant all on scm.* TO 'scm'@'%' IDENTIFIED BY 'scm_password';
+flush privileges;
+配置啟動Cloudera Manager Server
+
+sudo /usr/share/cmf/schema/scm_prepare_database.sh mysql scm scm scm_password
+sudo service cloudera-scm-server start
+若啟動報錯：
+
+/etc/init.d/cloudera-scm-server: line 292: [[: [error] JVM PermGen is set less than 256m, CM server may run out of PermGen space. Update CMF_JAVA_OPTS in /etc/default/cloudera-scm-server to fix this.: syntax error: operand expected (error token is "[error] JVM PermGen is set less than 256m, CM server may run out of PermGen space. Update CMF_JAVA_OPTS in /etc/default/cloudera-scm-server to fix this.")
+/etc/init.d/cloudera-scm-server: line 292: [[: [error] JVM MaxHeap is set less than 2G, CM server may run out of Heap space. Update CMF_JAVA_OPTS in /etc/default/cloudera-scm-server to fix this.: syntax error: operand expected (error token is "[error] JVM MaxHeap is set less than 2G, CM server may run out of Heap space. Update CMF_JAVA_OPTS in /etc/default/cloudera-scm-server to fix this.")
+修改配置文件/etc/default/cloudera-scm-server，找到export CM_JAVA_OPTS部分，將-Xmx2G修改為-Xmx4G
+
+查看日誌，驗證是否成功啟動
+
+tail -f /var/log/cloudera-scm-server/cloudera-scm-server.log
+2.4 Phase 4：安裝Cloudera Manager Agents
+
+安裝Cloudera Manager Agent軟件包
+在所有節點（包括master）上執行：
+
+sudo apt-get install cloudera-manager-agent cloudera-manager-daemons
+配置Cloudera Manager Agent 
+在所有節點上，修改配置文件sudo vi /etc/cloudera-scm-agent/config.ini，配置Cloudera Manager Server的主機和端口：
+
+server_host=master
+server_port=7182 #默认端口即可
+啟動Cloudera Manager Agent
+
+sudo service cloudera-scm-agent start
+2.5 Phase 5：安裝CDH和管理服務軟件
+
+登錄Cloudera Manager Admin Console 
+URL：http://192.168.199.100:7180 ( http://master:7180 ) 
+用戶名：admin 
+密碼：admin 
+選擇Cloudera Manager Edition：Cloudera Express
+
+為CDH集群安裝指定主機
+前面已經啟動Cloudera Manager Server & Agent，若所有配置正確，在已经管理的主机中應該可以看到所有主機。勾選所有主機，點擊“繼續”，進入Cluster Installation Select Repository頁。
+注：若沒有看到主機，可查看Cloudera Manager Agent服務是否正常啟動，或者指定IP或主機名匹配模式進行搜索。
+此處輸入圖片的描述
+
+選擇軟件安裝類型並安裝軟件
+①推薦採用Parcels安裝類型。
+②點擊“更多選項”，可以配置Parcel目录（修改後需重啟所有主機Cloudera Manager Agent服務）、本地Parcels库路径和远程Parcels库路径。
+③刪除系統默認的遠程Parcels庫路徑，只添加一條遠程Parcels庫路徑：https://archive.cloudera.com/cdh5/parcels/5.7.2/，安裝CDH5.7.2 
+④ CDH版本選擇CDH-5.7.2-1.cdh5.7.2.p0.18，點擊“繼續”，進入Installing Selected Parcels頁，開始安裝所選軟件包。
+注：由於前面手動安裝了JDK，所以不會彈出Install Oracle Java SE Development Kit (JDK)頁，直接進入Installing Selected Parcels頁。
+⑤完成後，CDH5.7.2軟件包將下載分發到各節點。
+
+檢查主機正確性
+點擊“主機”-->“所有主機”-->“檢查所有主機”（右上角）-->“查看檢查結果”，確認所有項都通過檢查，沒有警告和錯誤。若出現如下警告：
+① Cloudera 建议将/proc/sys/vm/swappiness 设置为 0。当前设置为 30。 
+在所有節點主機上，修改配置文件sudo vi /etc/sysctl.conf，設置vm.swappiness = 0，最後執行sudo sysctl -p。
+②已启用“透明大页面”，它可能会导致重大的性能问题。
+
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+echo never > /sys/kernel/mm/transparent_hugepage/defrag
+sudo vi /etc/rc.local
+echo never >/sys/kernel/mm/transparent_hugepage/enabled
+echo never >/sys/kernel/mm/transparent_hugepage/defrag
+完成以上步驟之後，就可以進行集群配置了。
+
+2.6 Phase 6：創建配置啟動CDH和相關服務
+
+添加服務Cloudera Management Service 
+點擊“集群”-->選擇一個“Cluster 1”-->“添加Cloudera管理服務”（右上角）-->選擇默認配置安裝。
+注：若首頁顯示Unable to issue query: could not connect to the Host Monitor，則是因為沒有安裝Cloudera Management Service。
+
+添加Activity Monitor服務
+①創建Activity Monitor服務數據庫amon
+
+mysql -u root -p
+create database amon DEFAULT CHARACTER SET utf8;
+grant all on amon.* TO 'amon'@'%' IDENTIFIED BY 'amon_password';
+flush privileges;
+②配置過程需指定數據庫amon及用戶amon。
+
+添加Core Hadoop服務
+注：選擇合適的主機分配策略 
+① HDFS 
+若Namenode提示一直處於元數據升級中：
+
+Concerning : NameNode summary: master (Availability: Active, Health: Concerning). This health test reflects the health of the active NameNode.
+可在Actions中手動執行Finalize Metadata Upgrade。
+② YARN (MR2 Included) 
+③ ZooKeeper 
+④ Oozie 
+創建Oozie服務數據庫：
+
+mysql -uroot -p
+create database oozie DEFAULT CHARACTER SET utf8;
+grant all on oozie.* TO 'oozie'@'localhost' IDENTIFIED BY 'oozie';
+grant all on oozie.* TO 'oozie'@'%' IDENTIFIED BY 'oozie';
+flush privileges;
+複製MySQL JDBC JAVA驅動
+
+sudo cp /usr/share/java/mysql-connector-java-5.1.28.jar /var/lib/oozie
+配置過程需指定數據庫oozie及用戶oozie。
+⑤ Hive 
+創建Hive Metadata服務數據庫：
+
+mysql -uroot -p
+create database metastore DEFAULT CHARACTER SET utf8;
+grant all on metastore.* TO 'hive'@'%' IDENTIFIED BY 'hive';
+flush privileges;
+配置過程需指定數據庫metastore及用戶hive。
+⑥ Hue 
+添加服務Hue，然後配置Hue Server使用MariaDB數據庫。
+詳見：Configuring the Hue Server to Store Data in MariaDB 
+創建Hue Server服務數據庫：
+
+create database hue DEFAULT CHARACTER SET utf8;
+grant all on hue.* TO 'hue'@'%' IDENTIFIED BY 'hue';
+注：在執行完Actions > Synchronize Database後，官方指南略有差別，登錄時需要指定主機名，然後選擇hue數據庫，如下：
+
+mysql -h hostname -uhue -p
+use hue;
+SHOW CREATE TABLE auth_permission;
+ALTER TABLE auth_permission DROP FOREIGN KEY content_type_id_refs_id_XXXXXX; //仅针对InnoDB
+DELETE FROM hue.django_content_type;
+在Load Database後，執行：
+
+ALTER TABLE auth_permission ADD FOREIGN KEY (content_type_id) REFERENCES django_content_type (id);
+特別提示：本文Hue該部分只列出了配置的關鍵步驟，詳細步驟請查看官方指南。
+
+HBase
+
+Impala
+
+Cloudera Search：Solr
+
+Spark
+
+Key-Value Store Indexer
+
+Sqoop 2 
+①創建Sqoop服務數據庫和用戶：
+
+sudo su - postgres
+psql -U postgres
+CREATE ROLE sqoop LOGIN ENCRYPTED PASSWORD 'sqoop_password' NOSUPERUSER INHERIT CREATEDB NOCREATEROLE;
+CREATE DATABASE "sqoop" WITH OWNER = sqoop  ENCODING = 'UTF8' TABLESPACE = pg_default LC_COLLATE = 'en_US.UTF8' LC_CTYPE = 'en_US.UTF8' CONNECTION LIMIT = -1;
+\q
+注：創建數據庫若提示錯誤：
+
+ERROR:  new collation (en_US.UTF8) is incompatible with the collation of the template database (en_HK.UTF-8)
+HINT:  Use the same collation as in the template database, or use template0 as template.
+可執行如下命令：
+
+CREATE DATABASE "sqoop" WITH OWNER = sqoop  ENCODING = 'UTF8' TABLESPACE = pg_default LC_COLLATE = 'en_US.UTF8' LC_CTYPE = 'en_US.UTF8' CONNECTION LIMIT = -1 TEMPLATE template0;
+②為Sqoop配置PostgresSQL Database 
+詳見：Configure Sqoop 2 to use PostgreSQL 
+注： Sqoop需要部署在PostgresSQL所在節點，測試發現部署在其他節點會報錯。
+
+Sentry 
+①創建數據庫
+
+mysql -uroot -p
+create database sentry DEFAULT CHARACTER SET utf8;
+grant all on sentry.* TO 'sentry'@'%' IDENTIFIED BY 'sentry_password';
+flush privileges;
+②在Cloudera Manager中添加Sentry服務，選擇服務安裝節點，若選擇除master之外的其他slave節點，則需要在該slave節點上安裝MySQL JDBC驅動，否則提示沒有MySQL JDBC驅動。如下：
+
+sudo apt-get install libmysql-java
+Kafka 
+①在Parcels Configuration中配置Kafka遠程庫路徑：https://archive.cloudera.com/kafka/parcels/latest/，然後下載、分發、激活Kafka軟件包。
+②在集群配置中，添加Kafka服務。
+若提示，或者錯誤日誌中提示Java Heap空間太小：
+
+Missing required value: Destination Broker List
+Missing required value: Source Broker List
+可按如下方法配置後重試即可：
+a.填寫Source Brokers List 
+填寫Kafka Broker所在節點構成的列表（用逗號分隔），如下（本文在所有節點部署了Kafka Broker）：
+
+master:9092,slave1:9092,slave2:9092,slave3:9092,slave4:9092
+b.填寫Destination Brokers List 
+若添加了Kafka MirrorMaker，則可填寫其所在節點構成的列表；若未添加Kafka MirrorMaker，可填寫任意服務器即可，如下：
+
+master:9092,slave1:9092,slave2:9092,slave3:9092,slave4:9092
+或：
+
+example.com:9092
+c.修改Java Heap Size 
+填寫上面列表後，點擊繼續，出錯後，Kafka服務未啟動。返回集群配置，打卡Kafka服務配置頁，查找“Java Heap Size of Broker”項，將對大小從50MB修改為256MB。
+d.配置Topic Whitelist 
+配置Topic Whitelist項為正則表達式：(?!x)x，保存更改。然後添加角色實例，重新配置即可。
+參考鏈接：adding a Kafka service failed
+
+1) Fill in "Source Brokers List" --> "nameOfClouderaKafkaBrokerServer.yourdomain.com:9092". This is the Server (or Servers) where you configured the Kafka Broker (NOT the MirrorMaker).
+
+2) Fill in "Destination Brokers List" --> "nameOfRemoteBrokerServer.otherdomain.com:9092". This is supposed to be a remote Cluster that will receive Topics sent over by your MirrorMaker. If you have one, put in that one. Otherwise just put in another Server in your network, whatever Server.
+
+Please note that both this Server Names must be FQDN and resolvable by your DNS (or hosts file), otherwise you'll get other errors. Also the format with the trailing Port Number is mandatory!
+
+3) Click "Continue". Service will NOT start (error). Do not navigate away from that screen
+
+4) Open another Cloudera Manager in another browser pane. You should now see "Kafka" in the list of Services (red, but it should be there). Click on the Kafka Service and then "Configure".
+
+5) Search for the "java heap space" Configuration Property. The standard Java Heap Space you'll find already set up should be 50 MBytes. Put in at least 256 MBytes. The original value is simply not enough.
+
+6) Now search for the "whitelist" Configuration Property. In the field, put in "(?!x)x" (without the quotation marks). That's a regular expression that does not match anything. Given that apparently a Whitelist is mandatory for the Mirrormaker Service to start, and I'm assuming you don't want to replicate any topics remotely right now, just put in something that won't replicate anything eg that regular expression.
+
+7) Save the changes and go back to the original Configuration Screen on the othe browser pane. Click "Retry", or wathever, or even exit that screen and manually restart the Kafka Service in Cloudera Manager.
+3. 測試
+
+MapReduce
+
+sudo -uhdfs hadoop jar /opt/cloudera/parcels/CDH/lib/hadoop-mapreduce/hadoop-mapreduce-examples.jar pi 20 10
+Spark
+
+sudo -uhdfs spark-submit --class org.apache.spark.examples.SparkPi --master yarn --deploy-mode client /opt/cloudera/parcels/CDH/lib/spark/lib/spark-examples-1.6.0-cdh5.7.2-hadoop2.6.0-cdh5.7.2.jar
+打開http://master:8088可以查看Job執行情況。
+
+4. 遇到的問題
+
+4.1 apt update無法更新Ubuntu Server 14.04
+
+問題
+執行sudo apt update，提示如下錯誤Packages Hash Sum mismatch：
+
+......
+W: Failed to fetch http://mirrors.aliyun.com/ubuntu/dists/trusty-updates/main/binary-i386/Packages  Hash Sum mismatch
+W: Failed to fetch http://mirrors.aliyun.com/ubuntu/dists/trusty-updates/universe/binary-i386/Packages  Hash Sum mismatch
+W: Failed to fetch http://mirrors.aliyun.com/ubuntu/dists/trusty-updates/main/i18n/Translation-en  Hash Sum mismatch
+W: Failed to fetch http://mirrors.aliyun.com/ubuntu/dists/trusty-updates/universe/i18n/Translation-en  Hash Sum mismatch
+E: Some index files failed to download. They have been ignored, or old ones used instead.
+原因
+①網上有的帖子寫到可能和以前本地緩存衝突，可刪除本地緩存的軟件源列表信息，sudo rm -rf /var/lib/apt/lists/*，但該方法經測試無效。
+②最後發現是由於網絡運營商的HTTP緩存，沒有及時更新，導致用戶更新Ubuntu系統時從ISP緩存下載軟件包，報錯「校驗和不符」。
+
+解決方法
+①使用HTTP代理：
+如果是設置只對當前會話有效的臨時代理，執行：
+
+export http_proxy=http://yourproxyaddress:proxyport
+sudo apt-get update
+sudo apt-get upgrade
+如果要設置持久代理，編輯sudo vi /etc/apt/apt.conf，添加一行：
+
+Acquire::http::Proxy "http://yourproxyaddress:proxyport";
+注：經測試，我的環境下，只有這種設置持久代理的方法才有效。
+參考鏈接：XX-NET代理配置 
+如果沒有HTTP代理，只有SOCKS代理，首先安裝proxychains程序，編輯/etc/proxychains.conf，指定SOCKS服務器的IP地址和端口，執行：
+
+sudo proxychains apt-get update
+sudo apt-get upgrade
+②換協議：
+網絡服務商只使用了HTTP緩存，如果軟件源還支持HTTPS或者FTP協議，修改/etc/apt/sources.list，把其中所有的http://換成ftp://，再執行系統更新。
+注：軟件源不支持FTP協議訪問，Ubuntu主服務器支持，但是網絡速度會比較慢。
+③修改apt包的源代碼：
+詳見：更新Ubuntu系統，避免報錯「校驗和不符」 
+參考鏈接：
+APT Hash sum mismatch 
+關於引起更新源索引時Hash Sum mismatch問題的真正原因及解決方案
+
+參考鏈接
+
+中國科學技術大學開源軟件鏡像
+浙江大學開源鏡像站
+ubuntu14.04LTS更新源
+在線和離線安裝Cloudera CDH 5.6.0
+Ubuntu Trusty CDH5 Download
+Installing and Deploying CDH Using the Command Line
+Installation Path B - Installation Using Cloudera Manager Parcels or Packages
+Install MariaDB Database
+PostgreSQL新手入門
+修改locale
+Installing or Upgrading Kafka
++
+
+
+
+
+
+
+修改過的內容
+1.Java Heap Size of NameNode in Bytes
+2.Java Heap Size of Secondary NameNode in Bytes
+3.  Configure Hue to point to the Thrift Server and to a valid HBase configuration
+    directory:
+    Go to the Hue service and click the Configuration tab.
+    Filter by Scope > All and Category > Main.
+    Set the property, HBase Service, to the service for which you enabled the Thrift Server
+    role (if you have more than one HBase service instance).
+    Set the property, HBase Thrift Server, to the Thrift Server role for Hue to use.
+    Filter by Category > Advanced.
+    Edit the property, Hue Service Advanced Configuration Snippet (Safety Valve) for
+    hue_safety_valve.ini, by adding a valid HBase configuration directory as follows:
+    [hbase]
+    hbase_conf_dir={{HBASE_CONF_DIR}}
+    Click Save Changes to commit the changes.
+4.'yarn.scheduler.maximum-allocation-mb' and/or 'yarn.nodemanager.resource.memory-mb'
+
