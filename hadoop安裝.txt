@@ -1,46 +1,35 @@
-https://www.zybuluo.com/ncepuwanghui/note/474966
-@ncepuwanghui 2016-08-22 11:12 字数 21962 阅读 777
-Ubuntu Server 14.04 安裝部署CDH5.7.2
 
-云计算 Hadoop
+Ubuntu Server 14.04 安裝部署CDH5.5.6
 
-【聲明】 
-歡迎轉載，轉載本文請註明作者和出處
-https://www.zybuluo.com/ncepuwanghui/note/474966
 
 【版本控制】
 
-@Title          Ubuntu Server 14.04 安装部署 CDH5.7.2
+@Title          Ubuntu Server 14.04 安装部署 CDH5.5.6
 @Version        v1.0
-@Timestamp      2016-08-20 11:01
-@Author         Sam Wong
-@Mail           ncepuwanghui@foxmail.com
+@Timestamp      2017-02-5 11:01
+@Author         Ken Shih
+@Mail           jheweishih@gmail.com
 【系統環境】 
-①物理主機
+①主機
 
-@Server         Wave P8000
-@CPU            Intel Xeon CPU E5-2620 v3 2.40GHz * 2
-@Memory         16GB * 8
-@Storage        SAS 300GB * 3
-@Network        Gigabit Ethernet Card * 6
-@OS             Windows Server 2012 R2 DataCenter
+@Server         
+@CPU            
+@Memory         
+@Storage        
+@Network        
+@OS             
 ② 集群環境
 
 @OS             Ubuntu Server 14.04.5 LTS (64bit)
 @JDK            JDK 1.7.0_67
-@CDH            CDH 5.7.2
+@CDH            CDH 5.5.6
 @Hadoop         Hadoop 2.6.0
-@Spark          Spark 1.6.0
+@Spark          Spark 1.5.0
 1. 節點系統安裝配置
 
 1.1 集群節點規劃
 
-硬件配置
-共5個節點：1個master節點，4個slave節點，硬件配置如下：
 
-節點	CPU	內存	存儲
-master	4	24GB	100GB
-slave	4	16GB	100GB
 網絡配置
 
 節點	eth0
@@ -58,132 +47,44 @@ ubuntu	ubuntu
 root	osroot
 服務用戶名和密碼
 
-Database	User	Password	Remark
-root	root_password	MariaDB
-postgres	postgres_password	PostgreSQL
-scm	scm	scm_password	Cloudera Manager Server
-hue	hue	hue_password	Apache Hadoop UI
-oozie	oozie	oozie_password	Oozie Server
-sqoop	sqoop	sqoop_password	Sqoop Server
-amon	amon	amon_password	Activity Monitor
-metastore	hive	hive_password	Hive Metastore Server
-sentry	sentry	sentry_password	Sentry Server
-hueadmin	admin_password	Hue Web UI Login
+Database	User	        Password	        Remark
+            root	        root_password	    MySQL
+            postgres	    postgres_password	PostgreSQL
+scm	        scm	            scm_password	    Cloudera Manager Server
+hue	        hue	            hue_password	    Apache Hadoop UI
+oozie	    oozie	        oozie_password	    Oozie Server
+sqoop	    sqoop	        sqoop_password	    Sqoop Server
+amon	    amon	        amon_password	    Activity Monitor
+metastore	hive	        hive_password	    Hive Metastore Server
+sentry	    sentry	        sentry_password	    Sentry Server
+            hueadmin	    admin_password	    Hue Web UI Login
 1.2 節點系統安裝
 
-在VMware中創建虛擬機，安裝Ubuntu Server 14.04.5 LTS
-
-創建虛擬機，設置CPU核心數、內存大小、存儲大小。
-添加虛擬網卡，採用橋接方式，橋接到物理網絡。
-加載Ubuntu Server 14.04.5 LTS系統鏡像
-啟動系統，選擇時區、語言，設置主機名和用戶名、密碼。
-Partition disks配置步驟：
-①單獨設置分區/dev/sda1，大小200MB，用於掛載/boot 
-選擇手動配置-->選擇硬盤-->創建新的分區表-->選擇空閒空間-->新建分區-->設置大小200MB-->選擇主分區-->選擇開始位置-->設置文件系統格式Ext4-->設置掛載點/boot-->設置分區。
-②設置LVM，方便擴展存儲，掛載/和swap 
-配置邏輯卷LVM-->將修改寫入磁盤並配置LVM-->新建卷組-->卷組名稱：vg_system-->按空格鍵選中剩餘空閒空間/dev/sda- ->將修改寫入磁盤並配置LVM-->新建邏輯卷-->選擇卷組vg_system-->邏輯卷名：lv_root-->設置邏輯卷大小：91GB-->新建邏輯卷-->選擇卷組vg_system-->邏輯卷名：lv_swap-->設置邏輯卷大小為剩餘空間-->完成。
-③分別對每一個邏輯捲進行配置
-磁盤格式：lv_root選擇ext4，lv_swap選擇swap area。
-掛載點：lv_root選擇"/"。
-最後選擇完成分區並將更改寫入磁盤，點擊確定即可。
-選擇服務器默認安裝軟件包
-空格鍵選擇OpenSSH Server，方便使用SSH傳輸文件。
-安裝Grub。
-按照上述步驟，創建其他節點服務器並安裝Ubuntu Server 14.04.5 LTS系統
 1.3 節點系統基本環境配置
 
 啟用root用戶，設置root密碼
 
 sudo passwd root
-設置靜態IP/DNS 
-注：以master節點為例 
-①修改文件sudo vi /etc/network/interfaces，將默認生成的（下面內容可能沒有，可能不一樣，配置時視自己情況而定）：
-
-auto eth0
-iface eth0 inet dhcp
-改為：
-
-auto eth0
-iface eth0 inet static
-address 192.168.199.100 #IP地址
-netmask 255.255.255.0 #子网掩码
-gateway 192.168.199.1 #网关
-dns-nameserver 192.168.199.1 #DNS
-② 重啟網卡，使配置生效：
-
-sudo service networking restart
-注：若找不到上述命令或重啟無效可嘗試下面命令：
-
-sudo ifdown eth0
-sudo ifdown eth1
-sudo ifup eth0
-sudo ifup eth1
-注：若提示ifdown: interface eth0 not configured，可換下面命令嘗試：
-
-sudo ifconfig eth0 down
-sudo ifconfig eth1 down
-sudo ifconfig eth0 up
-sudo ifconfig eth1 up
-③運行ifconfig -a查看網絡配置信息。
-④通過ping -c2 www.baidu.com測試能否正常訪問外網。若不能，可sudo reboot重啟節點試試。
-⑤配置完成後，可在其他主機，通過Xshell連接master節點。
-注：若XShell連接失敗，提示Xshell no matching outgoing encryption，可升級Xshell版本,在鏈接的屬性(SSH-->安全性)的加密算法列表中選擇aes256-ctr，mac加密列表中選擇hmac-sha2-256，保存即可。
-注：slave節點配置方法類似
 
 關閉防火牆
-
 sudo ufw disable
 配置hosts文件
 以master節點為例 
 要求所有的節點主機之間都是通過host互信的，編輯所有節點主機的/etc/hosts文件，配置完成後在每台主機上ping通其他主機名。
 ①執行sudo vi /etc/hosts，添加如下內容
 
-192.168.199.100 master
-192.168.199.101 slave1
-192.168.199.102 slave2
-192.168.199.103 slave3
-192.168.199.104 slave4
+192.168.199.100 hostone
+192.168.199.101 hosttwo
+192.168.199.102 hostthree
+
 ②註釋掉除127.0.0.1之外的環回地址項，如下：
 
 #127.0.1.1      master`
 注：slave節點配置方法類似
 
-服務器時區設置
-①執行sudo tzselect-->選擇亞洲（Asia）-->選擇中國（China)-->選擇北京(Beijing)--> 
-②複製文件到/etc目錄下：
-sudo cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime 
-注：若在系統安裝時已設置正確時區，可跳過該步驟。
+gedit /etc/sysctl.conf
+在sysctl.conf最底下加入 vm.swappiness = 10
 
-設置區域語言
-安裝en_US.UTF-8：
-
-sudo locale-gen en_US.UTF-8
-修改配置文件sudo vi /etc/default/locale如下：
-
-LANG="en_US.UTF-8"
-LANGUAGE="en_US:en"
-LC_ALL="en_US.UTF-8"
-重新配置區域：
-
-sudo dpkg-reconfigure locales
-註銷或重啟電腦，執行locale查看是否修改成功。
-
-配置ubuntu的更新源
-①備份源列表
-
-sudo cp /etc/apt/sources.list /etc/apt/sources.list_backup
-②選擇一個更新源，修改配置文件sudo vi /etc/apt/sources.list，添加新的源，國內推薦使用阿里源：
-
-deb http://mirrors.aliyun.com/ubuntu/ trusty main restricted universe multiverse
-deb http://mirrors.aliyun.com/ubuntu/ trusty-security main restricted universe multiverse
-deb http://mirrors.aliyun.com/ubuntu/ trusty-updates main restricted universe multiverse
-deb http://mirrors.aliyun.com/ubuntu/ trusty-proposed main restricted universe multiverse
-deb http://mirrors.aliyun.com/ubuntu/ trusty-backports main restricted universe multiverse
-deb-src http://mirrors.aliyun.com/ubuntu/ trusty main restricted universe multiverse
-deb-src http://mirrors.aliyun.com/ubuntu/ trusty-security main restricted universe multiverse
-deb-src http://mirrors.aliyun.com/ubuntu/ trusty-updates main restricted universe multiverse
-deb-src http://mirrors.aliyun.com/ubuntu/ trusty-proposed main restricted universe multiverse
-deb-src http://mirrors.aliyun.com/ubuntu/ trusty-backports main restricted universe multiverse
 更新系統
 ①更新系統
 
@@ -220,14 +121,16 @@ ssh-copy-id -i ~/.ssh/id_rsa.pub master
 cat ~/.ssh/authorized_keys
 ④把master節點的authorized_keys發送到所有slave節點，在master節點執行：
 
-scp ~/.ssh/authorized_keys ubuntu@slave1:/home/ubuntu/.ssh/
-scp ~/.ssh/authorized_keys ubuntu@slave2:/home/ubuntu/.ssh/
-scp ~/.ssh/authorized_keys ubuntu@slave3:/home/ubuntu/.ssh/
-scp ~/.ssh/authorized_keys ubuntu@slave4:/home/ubuntu/.ssh/
+scp ~/.ssh/authorized_keys cdh@hostone:/home/ubuntu/.ssh/
+scp ~/.ssh/authorized_keys cdh@hosttwo:/home/ubuntu/.ssh/
+scp ~/.ssh/authorized_keys cdh@hostthree:/home/ubuntu/.ssh/
+
 ⑤在所有節點上修改ssh配置文件使root用戶也能免密碼登錄：
 修改配置文件sudo vi /etc/ssh/sshd_config
 
 PermitRootLogin yes
+把PermitRootLogin 後面的 loginwithout… 改成yes
+
 統一時間源，安裝NTP服務
 ①在master節點上安裝NTP服務：sudo apt-get install chrony。
 重啟NTP使配置生效：sudo service chrony restart 
@@ -352,6 +255,7 @@ sudo mv /var/lib/mysql/ib_logfile1 backup_location
 ③新建文件sudo vi /etc/mysql/conf.d/cloudera.cnf，添加如下配置信息：
 
 [mysqld]
+sql_mode=STRICT_ALL_TABLES
 transaction-isolation = READ-COMMITTED
 # Disabling symbolic-links is recommended to prevent assorted security risks;
 # to do so, uncomment this line:
