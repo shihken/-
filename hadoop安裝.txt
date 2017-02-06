@@ -1,3 +1,4 @@
+http://askubuntu.com/questions/172514/how-do-i-uninstall-mysql
 
 Ubuntu Server 14.04 安裝部署CDH5.5.6
 
