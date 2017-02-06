@@ -101,6 +101,9 @@ sudo update-grub
 sudo grub-mkconfig -o /boot/grub/grub.cfg
 ② 查看系統發行版本和內核版本
 
+apt-get install ssh apache2 ntp yum-utils
+
+
 ubuntu@master:~$ sudo lsb_release -a
 No LSB modules are available.
 Distributor ID:	Ubuntu
