@@ -239,16 +239,16 @@ export JAVA_HOME=/usr/java/jdk.1.7.0_80
 source ~/.bashrc
 2.2 Phase 2：安裝數據庫
 
-需要安裝：MariaDB和PostgreSQL Database
+需要安裝：MySQL 和PostgreSQL Database
 
-安裝MariaDB 
-注：只有master節點安裝MariaDB
+安裝MySQL 
+注：只有master節點安裝 MySQL
 
-sudo apt-get install mariadb-server
+sudo apt-get install sudo lsof libmysql-java mysql-server
 注：提示輸入root密碼時，可直接選擇OK，跳過，在後面配置。
 
-配置和啟動MariaDB Server 
-①停止MariaDB Server
+配置和啟動 MySQL Server 
+①停止 MySQL Server
 
 sudo service mysql stop
 ②備份舊的InnoDB日誌文件/var/lib/mysql/ib_logfile0和/var/lib/mysql/ib_logfile1
