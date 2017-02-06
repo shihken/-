@@ -187,10 +187,10 @@ wget https://archive.cloudera.com/cm5/ubuntu/trusty/amd64/cm/cloudera.list?_ga=1
 sudo cp ~/cloudera.list /etc/apt/sources.list.d/cloudera-manager.list
 ③將cloudera-manager.list分發到所有slave節點：
 
-scp /etc/apt/sources.list.d/cloudera-manager.list root@slave1:/etc/apt/sources.list.d/cloudera-manager.list
-scp /etc/apt/sources.list.d/cloudera-manager.list root@slave2:/etc/apt/sources.list.d/cloudera-manager.list
-scp /etc/apt/sources.list.d/cloudera-manager.list root@slave3:/etc/apt/sources.list.d/cloudera-manager.list
-scp /etc/apt/sources.list.d/cloudera-manager.list root@slave4:/etc/apt/sources.list.d/cloudera-manager.list
+scp /etc/apt/sources.list.d/cloudera-manager.list root@hostone:/etc/apt/sources.list.d/cloudera-manager.list
+scp /etc/apt/sources.list.d/cloudera-manager.list root@hosttwo:/etc/apt/sources.list.d/cloudera-manager.list
+scp /etc/apt/sources.list.d/cloudera-manager.list root@hostthree:/etc/apt/sources.list.d/cloudera-manager.list
+
 ④ 向apt添加cloudera源公鑰，在所有節點執行如下命令：
 
 curl -s http://archive.cloudera.com/cm5/ubuntu/trusty/amd64/cm/archive.key | sudo apt-key add -
