@@ -1,0 +1,7 @@
+Odota 伺服器建制流程
+安裝 docker
+Git 檔案
+更改 .env_sample資料並改名為.env
+更動sql中的int.sql資料
+Docker build .
+Docker-compose up 啟動伺服器
