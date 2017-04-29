@@ -504,7 +504,7 @@ flush privileges;
 create database hue DEFAULT CHARACTER SET utf8;
 grant all on hue.* TO 'hue'@'%' IDENTIFIED BY 'hue';
 注：在執行完Actions > Synchronize Database後，官方指南略有差別，登錄時需要指定主機名，然後選擇hue數據庫，如下：
-
+https://www.cloudera.com/documentation/enterprise/5-7-x/topics/cm_ig_mysql.html
 mysql -h hostname -uhue -p
 use hue;
 SHOW CREATE TABLE auth_permission;
