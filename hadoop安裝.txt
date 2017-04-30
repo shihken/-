@@ -396,7 +396,7 @@ grant all on scm.* TO 'scm'@'%' IDENTIFIED BY 'scm_password';
 flush privileges;
 配置啟動Cloudera Manager Server
 
-sudo /usr/share/cmf/schema/scm_prepare_database.sh mysql scm scm scm_password
+sudo /usr/share/cmf/schema/scm_prepare_database.sh -h hostone mysql scm scm scm_password
 sudo service cloudera-scm-server start
 若啟動報錯：
 
