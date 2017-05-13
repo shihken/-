@@ -145,7 +145,7 @@ scp ~/.ssh/authorized_keys root@hostthree:/root/.ssh/
 ②在所有slave節點上安裝NTP服務：sudo apt-get install chrony。
 修改配置文件sudo gedit /etc/chrony/chrony.conf，刪除全部默認設置，只添加如下內容：
 
-server master iburst
+server hostone iburst
 重啟NTP服務：sudo service chrony restart 
 ③驗證是否配置正確：
 
@@ -185,7 +185,7 @@ Cloudera官方文檔提供了兩種管理倉庫策略：
 本文采用Standard Cloudera repositories，步驟如下：
 ①在master節點下載cloudera.list
 
-wget https://archive.cloudera.com/cm5/ubuntu/trusty/amd64/cm/cloudera.list?_ga=1.37493987.2113753785.1471598714
+wget https://archive.cloudera.com/cm5/ubuntu/trusty/amd64/cm/cloudera.list
 ②在master節點新建文件sudo gedit /etc/apt/sources.list.d/cloudera-manager.list，複製cloudera.list的內容
 
 sudo cp ~/cloudera.list /etc/apt/sources.list.d/cloudera-manager.list
