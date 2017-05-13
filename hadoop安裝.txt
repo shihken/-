@@ -74,9 +74,9 @@ sudo ufw disable
 要求所有的節點主機之間都是通過host互信的，編輯所有節點主機的/etc/hosts文件，配置完成後在每台主機上ping通其他主機名。
 ①執行sudo vi /etc/hosts，添加如下內容
 
-192.168.199.100 hostone
-192.168.199.101 hosttwo
-192.168.199.102 hostthree
+192.168.0.185 hostone
+192.168.0.186 hosttwo
+192.168.0.187 hostthree
 
 ②註釋掉除127.0.0.1之外的環回地址項，如下：
 
@@ -84,7 +84,7 @@ sudo ufw disable
 注：slave節點配置方法類似
 
 gedit /etc/sysctl.conf
-在sysctl.conf最底下加入 vm.swappiness = 10
+在sysctl.conf最底下加入 vm.swappiness = 0
 
 更新系統
 ①更新系統
@@ -116,7 +116,7 @@ Linux 4.4.0-36-generic x86_64 x86_64
 
 免密碼SSH登錄
 在所有節點上修改ssh配置文件使root用戶也能免密碼登錄：
-修改配置文件sudo vi /etc/ssh/sshd_config
+修改配置文件sudo gedit /etc/ssh/sshd_config
 
 PermitRootLogin yes
 把PermitRootLogin 後面的 loginwithout… 改成yes
@@ -132,9 +132,9 @@ ssh-copy-id -i ~/.ssh/id_rsa.pub master
 cat ~/.ssh/authorized_keys
 ④把master節點的authorized_keys發送到所有slave節點，在master節點執行：
 
-scp ~/.ssh/authorized_keys root@hostone:/home/ubuntu/.ssh/
-scp ~/.ssh/authorized_keys root@hosttwo:/home/ubuntu/.ssh/
-scp ~/.ssh/authorized_keys root@hostthree:/home/ubuntu/.ssh/
+scp ~/.ssh/authorized_keys root@hostone:/root/.ssh/
+scp ~/.ssh/authorized_keys root@hosttwo:/root/.ssh/
+scp ~/.ssh/authorized_keys root@hostthree:/root/.ssh/
 
 
 
@@ -257,9 +257,9 @@ sudo apt-get install sudo lsof libmysql-java mysql-server
 sudo service mysql stop
 ②備份舊的InnoDB日誌文件/var/lib/mysql/ib_logfile0和/var/lib/mysql/ib_logfile1
 
-sudo mv /var/lib/mysql/ib_logfile0 backup_location #备份位置
-sudo mv /var/lib/mysql/ib_logfile1 backup_location
-③新建文件sudo vi /etc/mysql/conf.d/cloudera.cnf，添加如下配置信息：
+sudo mv /var/lib/mysql/ib_logfile0 /home/cdh/ib_logfile0 #备份位置
+sudo mv /var/lib/mysql/ib_logfile1 /home/cdh/ib_logfile1
+③新建文件sudo gedit /etc/mysql/conf.d/cloudera.cnf，添加如下配置信息：
 
 [mysqld]
 sql_mode=STRICT_ALL_TABLES
@@ -331,7 +331,7 @@ mysql -uroot -p
 mysql -h localhost -uroot -p
 ⑦授權root可以訪問所有數據庫：
 
-mysql -uroot -proot_password
+mysql -uroot -p
 grant all privileges on *.* to 'root'@'%' identified by 'root_password' with grant option;
 flush privileges;
 安裝MariaDB JDBC Driver 
