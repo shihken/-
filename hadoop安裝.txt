@@ -248,7 +248,7 @@ source ~/.bashrc
 安裝MySQL 
 注：只有master節點安裝 MySQL
 
-sudo apt-get install sudo lsof libmysql-java mysql-server
+sudo apt-get install sudo lsof mysql-server
 注：提示輸入root密碼時，可直接選擇OK，跳過，在後面配置。
 
 配置和啟動 MySQL Server 
